@@ -25,3 +25,9 @@
 - I did not handle empty or malformed inputs. The fix was to normalize the input first and return an explicit skipped or error status when the text is empty or processing fails.
 
 - On Windows, the notebook environment can be sensitive to FastText installation issues. The fix is to use `fasttext-wheel` in the environment while still importing it with `import fasttext`.
+
+nump 2.x was messing with a fasttext-wheel version. numpy==2.4.4
+fasttext-wheel==0.9.2
+Dependency issues! Always first find a way of installing the latest version that doesn't conflict with all other current package versions.
+
+fastText’s language ID models are optimized for sentences and longer text, so they often misclassify or fail on very short words like “Asante”. This is a known limitation of n‑gram–based detectors and most simple LID models.
