@@ -1,5 +1,4 @@
 import re
-from nltk.corpus import words as nltk_words
 from rapidfuzz.process import cdist
 from rapidfuzz import fuzz
 import numpy as np
@@ -19,22 +18,11 @@ def load_words_to_set(file_path: str) -> set:
         return {line for line in file}
 
 
-words: dict[str, set[str]] = {
-    "English": set(nltk_words.words()),
-    "Luganda": load_words_to_set(file_path="words/processed/luganda_words.txt"),
-    "Swahili": load_words_to_set(file_path="words/processed/swahili_words.txt"),
-}
-
-
-def identify_language(word: str) -> list[str]:
+def identify_language(word: str, words: dict[str, set[str]]) -> list[str]:
     """Checks all sets and returns a list of language(s) that contains the word"""
     matches = [lang for lang, word_set in words.items() if word in word_set]
     return matches if matches else ["Unknown"]
 
-
-english_set = words["English"]
-luganda_set = words["Luganda"]
-swahili_set = words["Swahili"]
 
 def check_fuzzy_match(word: str, lang_set: set[str]) -> tuple[str, str, float] | None:
     """Find a fuzzy match for a word"""
@@ -46,6 +34,7 @@ def check_fuzzy_match(word: str, lang_set: set[str]) -> tuple[str, str, float] |
 
     # Check if the best score actually passes the threshold
     if matrix[0][best_idx] > 0:
+        # (input word, matched word, similarity score)
         return (word, list(lang_set)[best_idx], round(matrix[0][best_idx], 2))
     else:
         return None
