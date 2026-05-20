@@ -72,3 +72,16 @@ _Session date: 2026-05-20_
 - **Lesson:** prefer `str.strip()` for trimming leading/trailing whitespace (including newlines) instead of regex when the goal is simple trimming; keep both inputs and word lists normalized (collapse internal whitespace, `strip()`, and `lower()`) so comparisons are consistent.
 
 _Added during interactive debugging session: normalized input vs. loaded-word mismatch._
+
+## Chat Session Addendum — Refactor & Performance Learnings (2026-05-21)
+
+- Cache heavy resources once: build `words_dict` (sets) and a parallel `words_dict_list` (lists) outside per-word processing so file I/O and costly conversions run exactly once.
+- Avoid repeated `list()` casts on `set` values inside tight loops — sets are unordered and repeated casting is both slow and unsafe for index-based lookups.
+- Use `rapidfuzz.process.extractOne(query, choices, ...)` for single-query fuzzy matching instead of `cdist([query], choices, ...)` to avoid allocating a 2D matrix and unnecessary NumPy work.
+- Keep fast membership checks on `set` for exact-match lookups and use lists only for fuzzy-search APIs that require ordered sequences.
+- When collecting per-language fuzzy candidates, append only non-`None` results and then pick the best match with `max(..., key=lambda x: x[1][1])` where `x[1][1]` is the numeric similarity score returned by `extractOne`.
+- Never `return` inside a loop that must evaluate multiple sources; gather candidates first, then decide and return after the loop.
+- Validate third-party API return shapes when refactoring (e.g., `extractOne` expects a string query and returns `(match, score, index)`), and update indexing accordingly.
+- Notebook imports: either add the project root to `sys.path` in the notebook or keep package-qualified imports (`from src.module import ...`) so kernels resolve modules consistently.
+
+These edits fixed an I/O & CPU bottleneck and corrected several logic errors so the per-word pipeline runs efficiently on large comment datasets.
