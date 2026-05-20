@@ -12,10 +12,12 @@ def normalize_text_unit(text: str) -> str:
     return text
 
 
-def load_words_to_set(file_path: str) -> set:
+
+
+def load_words_to_set(file_path: str) -> set[str]:
     """Load the language words in their respective sets"""
     with open(file=file_path, mode="r", encoding="utf-8") as file:
-        return {line for line in file}
+        return {line.strip() for line in file}
 
 
 def identify_language(word: str, words: dict[str, set[str]]) -> list[str]:
@@ -27,8 +29,9 @@ def identify_language(word: str, words: dict[str, set[str]]) -> list[str]:
 def check_fuzzy_match(word: str, lang_set: set[str]) -> tuple[str, str, float] | None:
     """Find a fuzzy match for a word"""
     # Only track matches that have an 80% similarity or higher
-    matrix = cdist(word, lang_set, scorer=fuzz.ratio, score_cutoff=80)
-    
+    # for perfromance reasons and the fact that Iterable is what is accepted, we convert to list here
+    matrix = cdist([word], list(lang_set), scorer=fuzz.ratio, score_cutoff=80)
+
     # Get the index of the highest score in the first row
     best_idx = np.argmax(matrix[0])
 

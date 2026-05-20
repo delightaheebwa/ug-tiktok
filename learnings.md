@@ -26,8 +26,49 @@
 
 - On Windows, the notebook environment can be sensitive to FastText installation issues. The fix is to use `fasttext-wheel` in the environment while still importing it with `import fasttext`.
 
-nump 2.x was messing with a fasttext-wheel version. numpy==2.4.4
-fasttext-wheel==0.9.2
-Dependency issues! Always first find a way of installing the latest version that doesn't conflict with all other current package versions.
+- nump 2.x was messing with a fasttext-wheel version. numpy==2.4.4
+- fasttext-wheel==0.9.2
+- Dependency issues! Always first find a way of installing the latest version that doesn't conflict with all other current package versions.
 
-fastText’s language ID models are optimized for sentences and longer text, so they often misclassify or fail on very short words like “Asante”. This is a known limitation of n‑gram–based detectors and most simple LID models.
+- fastText’s language ID models are optimized for sentences and longer text, so they often misclassify or fail on very short words like “Asante”. This is a known limitation of n‑gram–based detectors and most simple LID models.
+
+## Session Learnings — Imports, Paths & Environments
+
+- Problem: `ModuleNotFoundError: No module named 'steps'` when importing `src.run` from a notebook inside `notebooks/`.
+	- Lesson: Python resolves imports relative to the process working directory (where the notebook runs), not the file location. Adding `sys.path.append('..')` from the notebook makes the repository root visible so `import src.run` works.
+
+- Problem: Using `from steps import ...` inside files in `src/` fails when importing `src.run` from outside `src`.
+	- Lesson: Use package-qualified imports (`from src.steps import ...`) or relative imports (`from .steps import ...`) when inside a package. Relative imports require the module to be accessed as part of a package (not as a top-level script).
+
+- Problem: `ModuleNotFoundError: No module named 'src'` after switching to relative imports in the notebook.
+	- Lesson: Don't use relative imports (like `from ..src.run`) inside notebooks; instead, add the parent folder to `sys.path` and use absolute package imports (`from src.run import ...`).
+
+- Problem: `ModuleNotFoundError: No module named 'rapidfuzz'` even though the package was installed in the system/terminal environment.
+	- Lesson: Notebook kernels can use a different Python environment than the terminal. Verify with `print(sys.executable)`. To install packages into the running kernel, use the kernel's Python executable: `!{sys.executable} -m pip install rapidfuzz` or switch the notebook's kernel in VS Code to the environment where the package is installed.
+
+- Problem: Thinking `__init__.py` would fix import failures.
+	- Lesson: `__init__.py` marks a folder as a package but does not change where Python looks for packages. If Python's working directory doesn't include the parent folder, adding `__init__.py` alone won't help.
+
+- Practical tips and good practices:
+	- Prefer creating and activating a virtual environment for the project and selecting that interpreter as the notebook kernel in VS Code.
+	- Add a `requirements.txt` or `pyproject.toml` to capture dependencies (e.g., `rapidfuzz`, `pandas`, `numpy`, `fasttext-wheel`).
+	- When installing inside a notebook, use `!{sys.executable} -m pip install <pkg>` to ensure installation in the active kernel.
+	- Keep imports inside package modules as package-relative (`from src.module import ...`) and import from notebooks using the package root (add repo root to `sys.path` if needed).
+	- Use `print(sys.path)` and `print(sys.executable)` for quick debugging of import/environment issues.
+
+## Quick Actions Taken This Session
+
+- Updated `src/run.py` imports to use `from src.steps import ...` so module resolution is explicit when importing from project root.
+- Adjusted notebook import strategy: added `sys.path.append('..')` in the notebook to expose repository root to the kernel.
+- Identified missing dependency (`rapidfuzz`) as an environment/kernel mismatch rather than a code bug.
+
+---
+_Session date: 2026-05-20_
+
+## Chat Session Notes — Normalization Fix
+
+- **Problem:** matched dictionary entries contained trailing newline characters, producing outputs like `('rafiki', 'rafiki\n', ...)` when performing comparisons.
+- **Fix applied:** updated `load_words_to_set` to use `line.strip()` when reading files so words no longer include `\n` or surrounding whitespace. See [src/steps.py](src/steps.py#L1-L40).
+- **Lesson:** prefer `str.strip()` for trimming leading/trailing whitespace (including newlines) instead of regex when the goal is simple trimming; keep both inputs and word lists normalized (collapse internal whitespace, `strip()`, and `lower()`) so comparisons are consistent.
+
+_Added during interactive debugging session: normalized input vs. loaded-word mismatch._
