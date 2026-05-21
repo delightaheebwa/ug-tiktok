@@ -1,7 +1,6 @@
 import re
 from rapidfuzz.process import extractOne
 from rapidfuzz import fuzz
-import numpy as np
 
 
 def normalize_text_unit(text: str) -> str:
