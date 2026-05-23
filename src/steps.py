@@ -1,15 +1,14 @@
 import re
 from rapidfuzz.process import extractOne
 from rapidfuzz import fuzz
-from typing import Literal
 from transformers import (
     pipeline,
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
+    TextGenerationPipeline,
 )
 import torch
-import gc
 
 
 def normalize_text_unit(text: str) -> str:
@@ -57,7 +56,7 @@ def get_generation_pipeline(
 ):  # XXX
     """Lazy-load and cache language-specific generation pipelines."""
     # Reuse generation pipelines so they are not rebuilt inside the loop.
-    generation_pipelines = {"English": None, "Luganda": None, "Swahili": None}
+    generation_pipelines: dict = {"English": None, "Luganda": None | TextGenerationPipeline, "Swahili": None | TextGenerationPipeline}
 
     # Extract language name and word
     model_g_path = "C:/Users/HP/ganda-gemma-1b"

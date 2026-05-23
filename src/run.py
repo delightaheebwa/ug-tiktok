@@ -8,10 +8,7 @@ from .steps import (
     score_from_label,
     generate_text
 )
-from typing import Literal
 import emoji
-import spacy as sp
-import nltk as tk
 import textblob as tb
 from textblob import Word
 
@@ -37,6 +34,8 @@ def run_steps(
         "fuzzy_word": "",
         "fuzzy_lang": "",
         "fuzzy_confidence": 0.0,
+        "checked_text": "",
+        "checked_lang": "",
         "corrected_text": "",
         "lemmatized_text": "",
         "polarity_score": 0.0,
@@ -61,17 +60,23 @@ def run_steps(
             result["fuzzy_lang"] = best_fuzzy_word[0]
             result["fuzzy_word"] = best_fuzzy_word[1][0]
             result["fuzzy_confidence"] = best_fuzzy_word[1][1]
+            result["checked_text"] = best_fuzzy_word[1][0]
+            result["checked_lang"] = best_fuzzy_word[0]
 
 
         else:
             best_fuzzy_word = "None"
             result["fuzzy_lang"] = best_fuzzy_word
             result["fuzzy_word"] = best_fuzzy_word
+            result["checked_text"] = best_fuzzy_word
+            result["checked_lang"] = best_fuzzy_word
             
         
     else:
         # dictionary word was found
         result["dict_word"] = matches[0]
+        result["checked_text"] = matches[0]
+        result["checked_lang"] = matches[0]
     #    return matches
 
 
@@ -89,7 +94,7 @@ def run_steps(
             demojized = emoji.demojize(normalized_word, delimiters=("", ""))
             corrected = str(tb.TextBlob(demojized).correct()).lower()
             lemma = Word(corrected).lemmatize().lower()
-            polarity = float(tb.TextBlob(lemma).sentiment.polarity)
+            polarity = float(tb.TextBlob(lemma).sentiment.polarity) # type: ignore
 
             result["corrected_text"] = corrected
             result["lemmatized_text"] = lemma

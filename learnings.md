@@ -97,3 +97,31 @@ These edits fixed an I/O & CPU bottleneck and corrected several logic errors so 
 - Picklability and large objects: ensure `run_steps` and passed structures are picklable. Avoid passing heavy non-picklable objects (open handles, model instances) into worker calls; instead, load heavy models inside worker processes using an `initializer` or lazily on first call.
 
 _Added during interactive chat session: cache + parallelization pattern, Windows/notebook multiprocessing caveats, and the minor percentage-bug fix._
+
+## Chat Session — 2026-05-23: DataFrame creation & column mapping
+
+- Replaced slow row-by-row DataFrame appends with a single-call construction from a list of dicts: `pd.DataFrame(data=results_list, columns=[...])` — much faster and avoids repeated reallocations.
+- Use `columns` to select only the dictionary keys you want (for example: `['checked_text','checked_lang','polarity_score','polarity_label']`) so extra keys are ignored.
+- Rename columns using the actual dictionary keys: `words.rename(columns={"checked_text": "Word", "checked_lang": "Language", ...}, inplace=True)` — use the `columns` param (not `index`) and ensure keys match `run_steps` output.
+- Compute term frequency with `words.groupby([...]).size().reset_index(name='Term Frequency')` after renaming.
+- Performance note: building the DataFrame from list-of-dicts is O(n) and far superior to repeated `words.loc[len(words)] = ...` in a Python loop.
+- Small correctness check: confirm the exact key name in `results_list` (e.g., `corrected_text` vs `checked_text`) before passing keys into `pd.DataFrame(columns=...)` or into the `rename` mapping.
+
+_Session date: 2026-05-23_
+
+## Why Pylance Can't See the Return Value
+Pylance cannot see the return value because the @cached_property decorator completely changes how the function works behind the scenes.
+Here is exactly how it breaks down:
+
+* Decorators hide the code: A decorator is like a wrapper around a function. Pylance sees the wrapper, not the inside of the package.
+* Dynamic execution: The @cached_property decorator transforms a standard function into a complex descriptor object. The actual return value (Sentiment) is only calculated dynamically the very first time you run the code.
+* Static limits: Since Pylance is a static analyzer, it only looks at the structure of the code without executing it. It sees the wrapper type (cached_property) instead of the final calculated output. [1, 2, 3, 4, 5] 
+
+------------------------------
+## A Simple Analogy
+Imagine a closed cardboard box labeled "Mystery Box Factory" (@cached_property).
+
+* Pylance's view: Pylance looks at the box and says, "This is a cardboard box factory object."
+* The Reality: If you actually open the box at runtime, a robot inside instantly builds and hands you a Toy Car (Sentiment).
+* The Confusion: Pylance refuses to let you type .wheels (.polarity) because it insists you are holding a "factory object," not a toy car.
+
