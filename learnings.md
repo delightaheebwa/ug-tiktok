@@ -85,3 +85,15 @@ _Added during interactive debugging session: normalized input vs. loaded-word mi
 - Notebook imports: either add the project root to `sys.path` in the notebook or keep package-qualified imports (`from src.module import ...`) so kernels resolve modules consistently.
 
 These edits fixed an I/O & CPU bottleneck and corrected several logic errors so the per-word pipeline runs efficiently on large comment datasets.
+
+## Chat Session — 2026-05-23 Performance & Parallelization Learnings
+
+- Extract unique words upfront using `set(...)` to avoid re-processing duplicates in large comment corpora; process each distinct token once.
+- Parallelize CPU-bound per-word processing with `concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count())` to utilise all logical cores. Use `ThreadPoolExecutor` only for I/O-bound work or when functions are not picklable.
+- Use `functools.partial` to pre-fill static kwargs (e.g., `words_dict_set`, `words_dict_list`) so the mapped function accepts a single argument for `executor.map()`.
+- Build a `word_results_cache = dict(zip(unique_words, results_list))` after parallel processing, then reconstruct final outputs by O(1) lookups for every original token.
+- Fix: when computing percentages, divide by the total number of processed tokens (e.g., `len(percent_list)`), not `len(result)` which is incorrect.
+- Notebook caveats: `ProcessPoolExecutor` in Windows or in-notebook contexts may require guarding with `if __name__ == '__main__'` or running the workload as a script to avoid child-process import issues. If running inside a notebook, consider running the heavy job as a separate script or use thread-based pools as a fallback.
+- Picklability and large objects: ensure `run_steps` and passed structures are picklable. Avoid passing heavy non-picklable objects (open handles, model instances) into worker calls; instead, load heavy models inside worker processes using an `initializer` or lazily on first call.
+
+_Added during interactive chat session: cache + parallelization pattern, Windows/notebook multiprocessing caveats, and the minor percentage-bug fix._
