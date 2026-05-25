@@ -2,13 +2,9 @@ from .steps import (
     normalize_text_unit,
     identify_language,
     check_fuzzy_match,
-    get_generation_pipeline,
     label_from_polarity,
-    extract_sentiment_label,
-    score_from_label,
-    generate_text
 )
-import emoji
+#import emoji
 import textblob as tb
 from textblob import Word
 
@@ -22,27 +18,35 @@ def run_steps(
     This function is designed to be called inside a for-loop or DataFrame apply.
     """
 
-    normalized_word = normalize_text_unit(initial_word)
-
-    matches = identify_language(word=normalized_word, words=words_dict_set)
-
     result = {
         "original_text": initial_word,
-        "normalized_word_text": normalized_word,
+        "normalized_word_text": "",
         "dict_word": "",
-        "dict_lang": matches,
+        "dict_lang": "",
         "fuzzy_word": "",
         "fuzzy_lang": "",
         "fuzzy_confidence": 0.0,
         "checked_text": "",
         "checked_lang": "",
-        "corrected_text": "",
+        #"corrected_text": "",
         "lemmatized_text": "",
         "polarity_score": 0.0,
         "polarity_label": "",
         "status": "ok",
         "error_message": "",
     }
+
+    # CPU bound
+    normalized_word = normalize_text_unit(initial_word)
+    result["normalized_word_text"] = normalized_word
+
+      # Early return for empty strings to keep loop processing robust.
+    if not normalized_word:
+        result["status"] = "skipped_empty"
+        return result
+
+    matches = identify_language(word=normalized_word, words=words_dict_set)
+    result["dict_lang"] = matches[0]
 
 
     if matches == ["Unknown"]:
@@ -81,50 +85,26 @@ def run_steps(
 
 
 
-    # Early return for empty strings to keep loop processing robust.
-    if not normalized_word:
-        result["status"] = "skipped_empty"
-        return result
 
     try:
-        lang = result["fuzzy_lang"]
+        lang = result["checked_lang"]
 
         if lang == "English":
             # English path: demojize -> spell-correct -> lemmatize -> sentiment.
-            demojized = emoji.demojize(normalized_word, delimiters=("", ""))
-            corrected = str(tb.TextBlob(demojized).correct()).lower()
-            lemma = Word(corrected).lemmatize().lower()
+            #demojized = emoji.demojize(normalized_word, delimiters=("", ""))
+            #corrected = str(tb.TextBlob(demojized).correct()).lower()
+            lemma = Word(result["checked_text"]).lemmatize().lower()
             polarity = float(tb.TextBlob(lemma).sentiment.polarity) # type: ignore
 
-            result["corrected_text"] = corrected
+            #result["corrected_text"] = corrected
             result["lemmatized_text"] = lemma
             result["polarity_score"] = polarity
             result["polarity_label"] = label_from_polarity(polarity)
 
         elif lang in {"Luganda", "Swahili"}:
-            # Luganda/Swahili path: use your local Gemma models for correction and sentiment.
-            gen_pipe = get_generation_pipeline(lang_name=lang)
-
-            correction_prompt = (
-                f"Correct spelling and clean this {lang} text. "
-                f"Return only the corrected text in lowercase: {normalized_word}"
-            )
-            corrected = generate_text(gen_pipe, correction_prompt)
-
-            sentiment_prompt = (
-                f"Classify the sentiment of this {lang} text. "
-                f"Answer with one word only: positive, neutral, or negative. "
-                f"Text: {corrected}"
-            )
-            sentiment_raw = generate_text(gen_pipe, sentiment_prompt)
-            sentiment_label = extract_sentiment_label(sentiment_raw)
-            sentiment_score = score_from_label(sentiment_label)
-
-            result["corrected_text"] = corrected
-            result["lemmatized_text"] = corrected  # Placeholder until a language-specific lemmatizer is added.
-            result["polarity_label"] = sentiment_label
-            result["polarity_score"] = sentiment_score
-
+            # Gemma LLM generation is GPU bound and to avoid reloading the cached pipelines in memory
+            result["status"] = "pending_gpu"
+            
         else:
             # Unknown/other language: keep normalized_word text and neutral score.
             result["status"] = "unknown_language"
@@ -133,4 +113,4 @@ def run_steps(
         result["status"] = "error"
         result["error_message"] = str(exc)
 
-    return result
+    return result # returns incomplete dict intentionally

@@ -108,20 +108,3 @@ _Added during interactive chat session: cache + parallelization pattern, Windows
 - Small correctness check: confirm the exact key name in `results_list` (e.g., `corrected_text` vs `checked_text`) before passing keys into `pd.DataFrame(columns=...)` or into the `rename` mapping.
 
 _Session date: 2026-05-23_
-
-## Why Pylance Can't See the Return Value
-Pylance cannot see the return value because the @cached_property decorator completely changes how the function works behind the scenes.
-Here is exactly how it breaks down:
-
-* Decorators hide the code: A decorator is like a wrapper around a function. Pylance sees the wrapper, not the inside of the package.
-* Dynamic execution: The @cached_property decorator transforms a standard function into a complex descriptor object. The actual return value (Sentiment) is only calculated dynamically the very first time you run the code.
-* Static limits: Since Pylance is a static analyzer, it only looks at the structure of the code without executing it. It sees the wrapper type (cached_property) instead of the final calculated output. [1, 2, 3, 4, 5] 
-
-------------------------------
-## A Simple Analogy
-Imagine a closed cardboard box labeled "Mystery Box Factory" (@cached_property).
-
-* Pylance's view: Pylance looks at the box and says, "This is a cardboard box factory object."
-* The Reality: If you actually open the box at runtime, a robot inside instantly builds and hands you a Toy Car (Sentiment).
-* The Confusion: Pylance refuses to let you type .wheels (.polarity) because it insists you are holding a "factory object," not a toy car.
-
