@@ -108,3 +108,17 @@ _Added during interactive chat session: cache + parallelization pattern, Windows
 - Small correctness check: confirm the exact key name in `results_list` (e.g., `corrected_text` vs `checked_text`) before passing keys into `pd.DataFrame(columns=...)` or into the `rename` mapping.
 
 _Session date: 2026-05-23_
+
+## Chat Session — 2026-05-26: Two-Stage CPU/GPU Pipeline Learnings
+
+- Separate the workflow by cost: keep dictionary lookup, fuzzy matching, and English processing in the CPU stage, and defer Luganda/Swahili Gemma inference to the notebook GPU stage.
+- Do not try to share a live GPU model across `ProcessPoolExecutor` workers; each worker would need its own copy and that can trigger OOM or pickling problems.
+- Store full result dictionaries for pending GPU work, not just text strings, so the notebook can update the original `results_list` entries in place after inference.
+- Use `checked_lang` and `status == "pending_gpu"` to filter the GPU queue in the notebook; `checked_lang` is the key that tells you whether a pending item belongs to Luganda or Swahili.
+- Never use `append()` inside a list comprehension for building a list; `append()` returns `None`, so the comprehension would produce a list of `None` values.
+- Build batched prompts with a list comprehension, one prompt per word, and pass the prompt list directly to the Hugging Face pipeline instead of stuffing all words into one giant prompt string.
+- When the pipeline returns batched outputs, pair them back to the original dictionaries with `zip(pending_words, outputs)` and mutate each dictionary’s `polarity_label`, `polarity_score`, and `status`.
+- For a smoke test, process only a tiny sample from each pending language first so you can verify the output shape before running the full batch.
+- Be careful to loop over the filtered pending list when generating prompts; looping over the full `results_list` defeats the batching/filtering logic.
+
+_Added during the chat session about moving to a two-step CPU/GPU architecture and fixing the notebook batching logic._

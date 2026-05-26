@@ -53,9 +53,9 @@ def label_from_polarity(score: float, neutral_band: float = 0.1) -> str:
     return "neutral"
 
 
-def extract_sentiment_label(raw_text: str):
+def extract_sentiment_label(raw_text: list):
     """Extract one of: positive, neutral, negative from model text output."""
-    lowered = raw_text.lower()
+    lowered = [text.lower() for text in raw_text]
     for label in ("positive", "neutral", "negative"):
         if label in lowered:
             return label
@@ -68,7 +68,7 @@ def score_from_label(label: str) -> float:
     return {"positive": 0.5, "neutral": 0.0, "negative": -0.5}.get(label, 0.0)
 
 
-def generate_text(gen_pipe, prompt: str, max_new_tokens: int = 5):  # XXX
+def generate_text(gen_pipe, prompt: list, max_new_tokens: int = 5):  # XXX
     """Run deterministic generation for consistency in data processing."""
     output = gen_pipe(
         prompt,
