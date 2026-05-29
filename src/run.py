@@ -78,8 +78,8 @@ def run_steps(
         
     else:
         # dictionary word was found
-        result["dict_word"] = matches[0]
-        result["checked_text"] = matches[0]
+        result["dict_word"] = initial_word
+        result["checked_text"] = initial_word
         result["checked_lang"] = matches[0]
     #    return matches
 
