@@ -85,3 +85,53 @@ _Added during interactive debugging session: normalized input vs. loaded-word mi
 - Notebook imports: either add the project root to `sys.path` in the notebook or keep package-qualified imports (`from src.module import ...`) so kernels resolve modules consistently.
 
 These edits fixed an I/O & CPU bottleneck and corrected several logic errors so the per-word pipeline runs efficiently on large comment datasets.
+These edits fixed an I/O & CPU bottleneck and corrected several logic errors so the per-word pipeline runs efficiently on large comment datasets.
+
+## Chat Session — 2026-05-23 Performance & Parallelization Learnings
+
+- Extract unique words upfront using `set(...)` to avoid re-processing duplicates in large comment corpora; process each distinct token once.
+- Parallelize CPU-bound per-word processing with `concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count())` to utilise all logical cores. Use `ThreadPoolExecutor` only for I/O-bound work or when functions are not picklable.
+- Use `functools.partial` to pre-fill static kwargs (e.g., `words_dict_set`, `words_dict_list`) so the mapped function accepts a single argument for `executor.map()`.
+- Build a `word_results_cache = dict(zip(unique_words, results_list))` after parallel processing, then reconstruct final outputs by O(1) lookups for every original token.
+- Fix: when computing percentages, divide by the total number of processed tokens (e.g., `len(percent_list)`), not `len(result)` which is incorrect.
+- Notebook caveats: `ProcessPoolExecutor` in Windows or in-notebook contexts may require guarding with `if __name__ == '__main__'` or running the workload as a script to avoid child-process import issues. If running inside a notebook, consider running the heavy job as a separate script or use thread-based pools as a fallback.
+- Picklability and large objects: ensure `run_steps` and passed structures are picklable. Avoid passing heavy non-picklable objects (open handles, model instances) into worker calls; instead, load heavy models inside worker processes using an `initializer` or lazily on first call.
+
+_Added during interactive chat session: cache + parallelization pattern, Windows/notebook multiprocessing caveats, and the minor percentage-bug fix._
+
+## Chat Session — 2026-05-23: DataFrame creation & column mapping
+
+- Replaced slow row-by-row DataFrame appends with a single-call construction from a list of dicts: `pd.DataFrame(data=results_list, columns=[...])` — much faster and avoids repeated reallocations.
+- Use `columns` to select only the dictionary keys you want (for example: `['checked_text','checked_lang','polarity_score','polarity_label']`) so extra keys are ignored.
+- Rename columns using the actual dictionary keys: `words.rename(columns={"checked_text": "Word", "checked_lang": "Language", ...}, inplace=True)` — use the `columns` param (not `index`) and ensure keys match `run_steps` output.
+- Compute term frequency with `words.groupby([...]).size().reset_index(name='Term Frequency')` after renaming.
+- Performance note: building the DataFrame from list-of-dicts is O(n) and far superior to repeated `words.loc[len(words)] = ...` in a Python loop.
+- Small correctness check: confirm the exact key name in `results_list` (e.g., `corrected_text` vs `checked_text`) before passing keys into `pd.DataFrame(columns=...)` or into the `rename` mapping.
+
+_Session date: 2026-05-23_
+
+## Chat Session — 2026-05-26: Two-Stage CPU/GPU Pipeline Learnings
+
+- Separate the workflow by cost: keep dictionary lookup, fuzzy matching, and English processing in the CPU stage, and defer Luganda/Swahili Gemma inference to the notebook GPU stage.
+- Do not try to share a live GPU model across `ProcessPoolExecutor` workers; each worker would need its own copy and that can trigger OOM or pickling problems.
+- Store full result dictionaries for pending GPU work, not just text strings, so the notebook can update the original `results_list` entries in place after inference.
+- Use `checked_lang` and `status == "pending_gpu"` to filter the GPU queue in the notebook; `checked_lang` is the key that tells you whether a pending item belongs to Luganda or Swahili.
+- Never use `append()` inside a list comprehension for building a list; `append()` returns `None`, so the comprehension would produce a list of `None` values.
+- Build batched prompts with a list comprehension, one prompt per word, and pass the prompt list directly to the Hugging Face pipeline instead of stuffing all words into one giant prompt string.
+- When the pipeline returns batched outputs, pair them back to the original dictionaries with `zip(pending_words, outputs)` and mutate each dictionary’s `polarity_label`, `polarity_score`, and `status`.
+- For a smoke test, process only a tiny sample from each pending language first so you can verify the output shape before running the full batch.
+- Be careful to loop over the filtered pending list when generating prompts; looping over the full `results_list` defeats the batching/filtering logic.
+
+_Added during the chat session about moving to a two-step CPU/GPU architecture and fixing the notebook batching logic._
+
+## Chat Session — 2026-05-30: Ordered-dedupe, CPU parallelism & GPU-aware batching
+
+- Use ordered deduplication (`unique_words = list(dict.fromkeys(all_words))`) to avoid reprocessing duplicate tokens while preserving the original token ordering for easy mapping back into results.
+- Parallelise CPU-bound preprocessing with `concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count())` and a tuned `chunksize` to reduce IPC overhead and improve throughput for large token sets.
+- Detect GPU with `torch.cuda.is_available()` and avoid performing GPU model inference inside worker processes; instead, collect `pending_gpu` items and run batched inference in a single GPU-backed process to prevent repeated model loads and CUDA context contention.
+- Set `TOKENIZERS_PARALLELISM='false'` when using multiprocessing plus Hugging Face tokenizers to avoid contention and noisy logs.
+- Build a `word_results_lookup = dict(zip(unique_words, results_unique))` and reconstruct results with `[word_results_lookup[w] for w in all_words]` so the CPU stage runs in O(U) (unique tokens) while final output preserves original order and frequency counts.
+- Caveat: passing very large lookup structures into `ProcessPoolExecutor` will pickle and transfer them to workers. For large `words_dict_set` consider using a worker `initializer` to load read-only shared data or run the preprocessing as a separate script to avoid excessive pickling.
+- Tuning note: the `chunksize` heuristic (`len(unique_words)//(max_cores*4)`) is a good starting point but may require adjustment depending on dataset size and the cost of `run_steps`.
+
+_Session date: 2026-05-30_
