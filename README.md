@@ -137,11 +137,14 @@ The notebook executes the full pipeline:
 from src.run import run_steps
 from src.steps import load_words_to_set
 
-# Load language dictionaries
+from nltk.corpus import words as nltk_words
+nltk.download("words", quiet=True)
+
+# Load language dictionaries (English uses NLTK's words corpus)
 words_dict = {
     "Luganda": load_words_to_set("words/processed/luganda_words.txt"),
     "Swahili": load_words_to_set("words/processed/swahili_words.txt"),
-    "English": load_words_to_set("words/processed/english_words.txt"),
+    "English": set(w.lower() for w in nltk_words.words()),
 }
 words_dict_list = {k: list(v) for k, v in words_dict.items()}
 
